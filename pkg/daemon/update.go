@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/kubectl/pkg/drain"
 
 	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
@@ -281,6 +282,9 @@ func (dn *Daemon) update(oldConfig, newConfig *mcfgv1.MachineConfig) (retErr err
 	oldConfigName := oldConfig.GetName()
 	newConfigName := newConfig.GetName()
 
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartLogging(glog.V(2).Infof)
+
 	glog.Infof("Checking Reconcilable for config %v to %v", oldConfigName, newConfigName)
 
 	// make sure we can actually reconcile this state
@@ -388,16 +392,25 @@ func (dn *Daemon) update(oldConfig, newConfig *mcfgv1.MachineConfig) (retErr err
 }
 
 func (dn *Daemon) finalizeUpdate(newConfig *mcfgv1.MachineConfig, actions []ActionResult) (retErr error) {
+	glog.Infof("Finalizing update")
 	if err := dn.updateOS(newConfig); err != nil {
 		return err
 	}
 
 	for _, action := range actions {
 		glog.Infof("Performing %v", action.Describe())
+		if true {
+			continue
+		}
 		if err := action.Execute(dn, newConfig); err != nil {
 			glog.Errorf("Applying machine config failed, node will reboot: %v", err)
 			return dn.finalizeAndReboot(newConfig)
 		}
+	}
+
+	if true {
+		glog.Infof("Rebooting")
+		return dn.finalizeAndReboot(newConfig)
 	}
 
 	if err := drain.RunCordonOrUncordon(dn.drainer, dn.node, false); err != nil {
